@@ -60,7 +60,7 @@ function buildThreeUniforms(experiment: Experiment, values: UniformValues) {
       window.innerWidth * (window.devicePixelRatio || 1),
       window.innerHeight * (window.devicePixelRatio || 1),
     ) },
-    u_scale: { value: 1.0 },
+    u_scale: { value: window.devicePixelRatio || 1 },
   };
 
   for (const group of experiment.groups) {
@@ -154,11 +154,13 @@ export function useShader(
 
   function resize() {
     if (!renderer) return;
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     uniforms.u_resolution.value = new THREE.Vector2(
       renderer.domElement.width,
       renderer.domElement.height,
     );
+    uniforms.u_scale.value = window.devicePixelRatio || 1;
   }
 
   function syncUniforms() {
@@ -211,9 +213,8 @@ export function useShader(
     renderer.getSize(prevSize);
     const prevResolution = (uniforms.u_resolution.value as THREE.Vector2).clone();
 
-    // Compute scale factor: export pixels vs current screen pixels
-    const currentWidth = prevSize.x * prevPixelRatio;
-    const scaleFactor = width / currentWidth;
+    // Compute scale factor relative to CSS viewport (DPR-independent baseline)
+    const scaleFactor = width / prevSize.x;
 
     // Set up high-res render
     renderer.setPixelRatio(1);
@@ -234,7 +235,7 @@ export function useShader(
     renderer.setPixelRatio(prevPixelRatio);
     renderer.setSize(prevSize.x, prevSize.y);
     (uniforms.u_resolution.value as THREE.Vector2).copy(prevResolution);
-    uniforms.u_scale.value = 1.0;
+    uniforms.u_scale.value = prevPixelRatio;
 
     // Resume animation
     animate();
