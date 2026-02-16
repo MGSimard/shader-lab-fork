@@ -56,7 +56,10 @@ function updateGradientTexture(texture: THREE.CanvasTexture, stops: GradientStop
 function buildThreeUniforms(experiment: Experiment, values: UniformValues) {
   const uniforms: Record<string, { value: unknown }> = {
     u_time: { value: 0.0 },
-    u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    u_resolution: { value: new THREE.Vector2(
+      window.innerWidth * (window.devicePixelRatio || 1),
+      window.innerHeight * (window.devicePixelRatio || 1),
+    ) },
   };
 
   for (const group of experiment.groups) {
@@ -152,8 +155,8 @@ export function useShader(
     if (!renderer) return;
     renderer.setSize(window.innerWidth, window.innerHeight);
     uniforms.u_resolution.value = new THREE.Vector2(
-      window.innerWidth,
-      window.innerHeight,
+      renderer.domElement.width,
+      renderer.domElement.height,
     );
   }
 
