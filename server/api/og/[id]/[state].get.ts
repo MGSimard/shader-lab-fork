@@ -212,10 +212,21 @@ async function compositeImage(pixels: Uint8Array): Promise<Buffer> {
     console.error("Failed to load logo:", e);
   }
 
-  // Draw "Shader Lab" text (bottom-left)
-  ctx.fillStyle = "white";
-  ctx.font = "bold 56px sans-serif";
-  ctx.fillText("Shader Lab", 40, OG_HEIGHT - 48);
+  // Draw "Shader Lab" title (bottom-left)
+  try {
+    const storage = useStorage("assets:server");
+    const titleSvg = await storage.getItemRaw("shader-lab-title.svg");
+    if (titleSvg) {
+      const title = await loadImage(titleSvg as Buffer);
+      const titleTargetWidth = 320;
+      const titleScale = titleTargetWidth / title.width;
+      const titleW = titleTargetWidth;
+      const titleH = title.height * titleScale;
+      ctx.drawImage(title, 40, OG_HEIGHT - titleH - 40, titleW, titleH);
+    }
+  } catch (e) {
+    console.error("Failed to load title:", e);
+  }
 
   return canvas.toBuffer("image/png");
 }
