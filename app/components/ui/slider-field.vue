@@ -1,0 +1,80 @@
+<script setup lang="ts">
+type Props = {
+  name?: string;
+  label?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+};
+
+const { name, label, min = 0, max = 1, step = 0.01, disabled = false } = defineProps<Props>();
+
+const model = defineModel<number>({ default: 0.5 });
+
+const isEditing = ref(false);
+const inputRef = ref<HTMLInputElement | null>(null);
+
+const displayValue = computed(() => {
+  if (Number.isInteger(step) && step >= 1) {
+    return model.value.toFixed(0);
+  }
+  if (step >= 0.1) {
+    return model.value.toFixed(1);
+  }
+  return model.value.toFixed(2);
+});
+
+function startEdit() {
+  isEditing.value = true;
+  nextTick(() => {
+    inputRef.value?.select();
+  });
+}
+
+function commitValue(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const parsed = parseFloat(input.value);
+  if (!isNaN(parsed)) {
+    const snapped = Math.round(parsed / step) * step;
+    model.value = Math.min(max, Math.max(min, snapped));
+  }
+  isEditing.value = false;
+}
+</script>
+
+<template>
+  <div class="flex flex-col gap-1.5">
+    <div
+      v-if="label"
+      class="flex items-center justify-between"
+    >
+      <span class="text-copy-sm text-secondary select-none">{{ label }}</span>
+      <input
+        v-if="isEditing"
+        ref="inputRef"
+        :value="displayValue"
+        type="text"
+        class="h-4 w-12 rounded bg-surface-2 px-1 text-right font-mono text-copy-xs text-primary outline-none ring-1 ring-edge-strong"
+        @blur="commitValue"
+        @keydown.enter="($event.target as HTMLInputElement).blur()"
+        @keydown.escape="isEditing = false"
+      />
+      <button
+        v-else
+        class="h-4 min-w-8 cursor-text rounded px-1 text-right font-mono text-copy-xs text-tertiary transition-colors hover:text-secondary"
+        @click="startEdit"
+      >
+        {{ displayValue }}
+      </button>
+    </div>
+    <UiSlider
+      v-model="model"
+      :name="name"
+      :min="min"
+      :max="max"
+      :step="step"
+      :disabled="disabled"
+    />
+  </div>
+</template>
