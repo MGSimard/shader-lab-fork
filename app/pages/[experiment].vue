@@ -16,18 +16,25 @@ if (!experiment) {
 
 useHead({ title: `${experiment.name} — Shader Lab` });
 
-// Dynamic OG image based on current URL state (path-based, no query params)
+// Dynamic OG image: clean .png URL for maximum social platform compatibility
 const ogImageUrl = computed(() => {
   const s = route.query.s as string | undefined;
-  const state = s || "_";
-  return `https://shader.zeitwork.com/api/og/${experimentId}/${state}`;
+  if (s) {
+    return `https://shader.zeitwork.com/og/${experimentId}/${s}.png`;
+  }
+  return `https://shader.zeitwork.com/og/${experimentId}.png`;
 });
 
 useSeoMeta({
   ogTitle: () => `${experiment.name} — Shader Lab`,
   ogDescription: experiment.description,
   ogImage: ogImageUrl,
+  ogImageWidth: 1200,
+  ogImageHeight: 630,
+  ogImageType: "image/png",
+  ogUrl: () => `https://shader.zeitwork.com/${experimentId}`,
   twitterCard: "summary_large_image",
+  twitterSite: "@zeitwork",
   twitterTitle: () => `${experiment.name} — Shader Lab`,
   twitterDescription: experiment.description,
   twitterImage: ogImageUrl,

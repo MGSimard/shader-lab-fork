@@ -26,6 +26,8 @@ export default defineNuxtConfig({
         { name: "description", content: "Shader experiments playground" },
         { property: "og:type", content: "website" },
         { property: "og:site_name", content: "Shader Lab" },
+        { property: "og:url", content: "https://shader.zeitwork.com" },
+        { name: "twitter:site", content: "@zeitwork" },
       ],
     },
   },
