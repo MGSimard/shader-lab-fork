@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { PopoverRoot, PopoverTrigger, PopoverContent, PopoverPortal } from "reka-ui";
-import type { GradientStop } from "~/types";
+import type { GradientStop } from "#shared/types";
 
 type Props = {
   label?: string;

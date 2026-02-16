@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import experiments from "~/experiments";
+import experiments from "#shared/experiments";
 
 useHead({ title: "Shader Lab" });
+
+useSeoMeta({
+  ogTitle: "Shader Lab",
+  ogDescription: "Shader experiments playground",
+  ogImage: "https://shader.zeitwork.com/og-image.png",
+  twitterCard: "summary_large_image",
+  twitterTitle: "Shader Lab",
+  twitterDescription: "Shader experiments playground",
+  twitterImage: "https://shader.zeitwork.com/og-image.png",
+});
 
 const experimentList = computed(() =>
   Object.values(experiments).map((e) => ({

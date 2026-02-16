@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DownloadIcon, RotateCcwIcon, SettingsIcon, XIcon } from "lucide-vue-next";
-import type { Experiment, GradientStop, UniformValue } from "~/types";
+import type { Experiment, GradientStop, UniformValue } from "#shared/types";
 
 type Props = {
   experiment: Experiment;

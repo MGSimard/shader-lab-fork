@@ -1,4 +1,4 @@
-import type { Experiment } from "~/types";
+import type { Experiment } from "#shared/types";
 import gradientDither from "./gradient-dither";
 
 const experiments: Record<string, Experiment> = {

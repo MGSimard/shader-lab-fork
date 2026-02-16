@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { Experiment, GradientStop, UniformValue } from "~/types";
+import type { Experiment, GradientStop, UniformValue } from "#shared/types";
 
 type UniformValues = Record<string, UniformValue>;
 

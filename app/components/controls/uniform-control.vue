@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { UniformDef, UniformValue, GradientStop } from "~/types";
+import type { UniformDef, UniformValue, GradientStop } from "#shared/types";
 
 type Props = {
   uniform: UniformDef;

@@ -1,5 +1,5 @@
 import { useDebounceFn } from "@vueuse/core";
-import type { Experiment, GradientStop, UniformValue } from "~/types";
+import type { Experiment, GradientStop, UniformValue } from "#shared/types";
 
 type UniformValues = Record<string, UniformValue>;
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GradientStop } from "~/types";
+import type { GradientStop } from "#shared/types";
 
 const model = defineModel<GradientStop[]>({ required: true });
 

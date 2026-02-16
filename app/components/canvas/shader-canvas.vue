@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Experiment } from "~/types";
+import type { Experiment } from "#shared/types";
 
 type Props = {
   experiment: Experiment;

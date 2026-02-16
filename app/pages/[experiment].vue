@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { UniformValue } from "~/types";
-import experiments from "~/experiments";
+import type { UniformValue } from "#shared/types";
+import experiments from "#shared/experiments";
 
 const route = useRoute();
 const experimentId = route.params.experiment as string;
@@ -16,6 +16,24 @@ if (!experiment) {
 
 useHead({ title: `${experiment.name} — Shader Lab` });
 
+// Dynamic OG image based on current URL state
+const ogImageUrl = computed(() => {
+  const params = new URLSearchParams({ id: experimentId });
+  const s = route.query.s;
+  if (s) params.set("s", s as string);
+  return `https://shader.zeitwork.com/api/og?${params}`;
+});
+
+useSeoMeta({
+  ogTitle: () => `${experiment.name} — Shader Lab`,
+  ogDescription: experiment.description,
+  ogImage: ogImageUrl,
+  twitterCard: "summary_large_image",
+  twitterTitle: () => `${experiment.name} — Shader Lab`,
+  twitterDescription: experiment.description,
+  twitterImage: ogImageUrl,
+});
+
 const canvasRef = ref<{
   values: Record<string, UniformValue>;
   capture: (width: number, height: number) => Promise<void>;
@@ -27,14 +45,16 @@ function download() {
 </script>
 
 <template>
-  <CanvasShaderCanvas
-    ref="canvasRef"
-    :experiment="experiment"
-  />
-  <ControlsControlPanel
-    v-if="canvasRef"
-    v-model="canvasRef.values"
-    :experiment="experiment"
-    @download="download"
-  />
+  <ClientOnly>
+    <CanvasShaderCanvas
+      ref="canvasRef"
+      :experiment="experiment"
+    />
+    <ControlsControlPanel
+      v-if="canvasRef"
+      v-model="canvasRef.values"
+      :experiment="experiment"
+      @download="download"
+    />
+  </ClientOnly>
 </template>

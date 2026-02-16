@@ -1,5 +1,5 @@
-import fragmentShader from "~/shaders/gradient-dither.frag";
-import type { Experiment } from "~/types";
+import fragmentShader from "#shared/shaders/gradient-dither.frag";
+import type { Experiment } from "#shared/types";
 
 export default {
 	id: "gradient-dither",
