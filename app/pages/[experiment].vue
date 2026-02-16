@@ -16,13 +16,11 @@ if (!experiment) {
 
 useHead({ title: `${experiment.name} — Shader Lab` });
 
-// Dynamic OG image: clean .png URL for maximum social platform compatibility
+// Dynamic OG image based on current URL state
 const ogImageUrl = computed(() => {
   const s = route.query.s as string | undefined;
-  if (s) {
-    return `https://shader.zeitwork.com/og/${experimentId}/${s}.png`;
-  }
-  return `https://shader.zeitwork.com/og/${experimentId}.png`;
+  const state = s || "_";
+  return `https://shader.zeitwork.com/api/og/${experimentId}/${state}`;
 });
 
 useSeoMeta({
