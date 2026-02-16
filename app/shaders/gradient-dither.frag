@@ -26,6 +26,9 @@ uniform float grainSpeed;
 // Gradient texture (1D ramp, generated on CPU)
 uniform sampler2D u_gradient;
 
+// Export scale factor (1.0 during normal rendering, >1.0 during high-res capture)
+uniform float u_scale;
+
 // --- Fast tanh approximation
 float fastTanh(float x) {
     return clamp(x * (27.0 + x * x) / (27.0 + 9.0 * x * x), -1.0, 1.0);
@@ -76,8 +79,8 @@ vec3 ditherColor(vec3 color, vec2 coord, float levels, float scale) {
 void main() {
     vec2 fragCoord = gl_FragCoord.xy;
 
-    // Quantize to dither block
-    float scale = ditherScale;
+    // Quantize to dither block (scale with u_scale so export matches screen)
+    float scale = ditherScale * u_scale;
     vec2 ditherBlockCoord = floor(fragCoord / scale) * scale + scale * 0.5;
 
     // Use dither block center for all calculations
@@ -119,7 +122,7 @@ void main() {
     color *= edgeMask;
 
     // Bayer dithering: only this is per-pixel
-    color = ditherColor(color, fragCoord, ditherLevels, ditherScale);
+    color = ditherColor(color, fragCoord, ditherLevels, ditherScale * u_scale);
 
     gl_FragColor = vec4(color, 1.0);
 }

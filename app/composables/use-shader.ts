@@ -60,6 +60,7 @@ function buildThreeUniforms(experiment: Experiment, values: UniformValues) {
       window.innerWidth * (window.devicePixelRatio || 1),
       window.innerHeight * (window.devicePixelRatio || 1),
     ) },
+    u_scale: { value: 1.0 },
   };
 
   for (const group of experiment.groups) {
@@ -121,7 +122,7 @@ export function useShader(
     const canvas = canvasRef.value;
     if (!canvas) return;
 
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
     renderer.setClearColor(0x0a0a0a);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -195,6 +196,60 @@ export function useShader(
     }
   }
 
+  async function capture(width: number, height: number): Promise<void> {
+    if (!renderer || !scene || !camera) return;
+
+    // Pause animation
+    if (animationId !== null) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+
+    // Save current state
+    const prevPixelRatio = renderer.getPixelRatio();
+    const prevSize = new THREE.Vector2();
+    renderer.getSize(prevSize);
+    const prevResolution = (uniforms.u_resolution.value as THREE.Vector2).clone();
+
+    // Compute scale factor: export pixels vs current screen pixels
+    const currentWidth = prevSize.x * prevPixelRatio;
+    const scaleFactor = width / currentWidth;
+
+    // Set up high-res render
+    renderer.setPixelRatio(1);
+    renderer.setSize(width, height, false);
+    (uniforms.u_resolution.value as THREE.Vector2).set(width, height);
+    uniforms.u_scale.value = scaleFactor;
+
+    // Render one frame
+    uniforms.u_time.value = performance.now() / 1000;
+    renderer.render(scene, camera);
+
+    // Extract pixels
+    const blob = await new Promise<Blob | null>((resolve) => {
+      renderer!.domElement.toBlob(resolve, "image/png");
+    });
+
+    // Restore original state
+    renderer.setPixelRatio(prevPixelRatio);
+    renderer.setSize(prevSize.x, prevSize.y);
+    (uniforms.u_resolution.value as THREE.Vector2).copy(prevResolution);
+    uniforms.u_scale.value = 1.0;
+
+    // Resume animation
+    animate();
+
+    // Trigger download
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${experiment.id}-${width}x${height}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
   function destroy() {
     if (animationId !== null) {
       cancelAnimationFrame(animationId);
@@ -231,5 +286,6 @@ export function useShader(
 
   return {
     values,
+    capture,
   };
 }

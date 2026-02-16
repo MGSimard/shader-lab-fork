@@ -16,7 +16,14 @@ if (!experiment) {
 
 useHead({ title: `${experiment.name} — Shader Lab` });
 
-const canvasRef = ref<{ values: Record<string, UniformValue> } | null>(null);
+const canvasRef = ref<{
+  values: Record<string, UniformValue>;
+  capture: (width: number, height: number) => Promise<void>;
+} | null>(null);
+
+function download() {
+  canvasRef.value?.capture(5120, 2880);
+}
 </script>
 
 <template>
@@ -28,5 +35,6 @@ const canvasRef = ref<{ values: Record<string, UniformValue> } | null>(null);
     v-if="canvasRef"
     v-model="canvasRef.values"
     :experiment="experiment"
+    @download="download"
   />
 </template>
