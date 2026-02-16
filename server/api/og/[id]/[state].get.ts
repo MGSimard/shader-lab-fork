@@ -1,6 +1,7 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import experiments from "#shared/experiments";
 import type { GradientStop, UniformValue } from "#shared/types";
+import { decodeState } from "#shared/utils/url-state";
 
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
@@ -14,52 +15,6 @@ void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
-
-// --- URL state decoding (mirrors use-url-state.ts logic) ---
-
-function decodeState(encoded: string): Record<string, UniformValue> | null {
-  try {
-    const json = atob(encoded);
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
-function validateValue(raw: unknown, type: string): UniformValue | null {
-  switch (type) {
-    case "float":
-    case "int":
-      return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-    case "bool":
-      return typeof raw === "boolean" ? raw : null;
-    case "color":
-      return typeof raw === "string" && /^#[0-9a-f]{6}$/i.test(raw) ? raw : null;
-    case "vec2":
-      return Array.isArray(raw) &&
-        raw.length === 2 &&
-        typeof raw[0] === "number" &&
-        typeof raw[1] === "number"
-        ? (raw as [number, number])
-        : null;
-    case "gradient": {
-      if (!Array.isArray(raw) || raw.length === 0) return null;
-      const stops = raw.filter(
-        (s): s is GradientStop =>
-          typeof s === "object" &&
-          s !== null &&
-          typeof s.color === "string" &&
-          /^#[0-9a-f]{6}$/i.test(s.color) &&
-          typeof s.position === "number" &&
-          s.position >= 0 &&
-          s.position <= 1,
-      );
-      return stops.length >= 2 ? stops : null;
-    }
-    default:
-      return null;
-  }
-}
 
 // --- Gradient texture creation for server-side ---
 
@@ -79,13 +34,6 @@ function createGradientData(stops: GradientStop[]): Uint8Array {
   return new Uint8Array(imageData.data);
 }
 
-function hexToRGB(hex: string): [number, number, number] {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  return [r, g, b];
-}
-
 // --- Headless rendering ---
 
 async function renderShader(
@@ -99,9 +47,6 @@ async function renderShader(
   let createGL: any;
   let THREE: any;
   try {
-    // Use createRequire for native modules — dynamic import() doesn't resolve
-    // node_modules correctly from Nitro's bundled server chunks.
-    // Point createRequire to .output/server/ where bun installed node_modules.
     const { createRequire } = await import("module");
     const { join } = await import("path");
     const serverPkg = join(process.cwd(), ".output", "server", "package.json");
@@ -126,21 +71,10 @@ async function renderShader(
   }
 
   if (stateParam) {
-    const decoded = decodeState(stateParam);
+    const decoded = decodeState(stateParam, experiment);
     if (decoded) {
-      const uniformTypes = new Map<string, string>();
-      for (const group of experiment.groups) {
-        for (const def of group.uniforms) {
-          uniformTypes.set(def.name, def.type);
-        }
-      }
-      for (const [key, raw] of Object.entries(decoded)) {
-        const type = uniformTypes.get(key);
-        if (!type) continue;
-        const validated = validateValue(raw, type);
-        if (validated !== null) {
-          values[key] = validated;
-        }
+      for (const [key, val] of Object.entries(decoded)) {
+        values[key] = val;
       }
     }
   }
@@ -162,7 +96,6 @@ async function renderShader(
   };
 
   try {
-    // Create Three.js renderer with the headless GL context
     const renderer = new THREE.WebGLRenderer({
       canvas: canvasShim as unknown as HTMLCanvasElement,
       context: glContext as unknown as WebGLRenderingContext,
@@ -203,8 +136,6 @@ async function renderShader(
           case "gradient": {
             const stops = val as GradientStop[];
             const gradientData = createGradientData(stops);
-
-            // Create a DataTexture from the gradient pixel data
             const texture = new THREE.DataTexture(
               gradientData,
               GRADIENT_RESOLUTION,
@@ -232,17 +163,14 @@ async function renderShader(
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
-    // Render
     renderer.render(scene, camera);
 
-    // Read pixels
     const pixels = new Uint8Array(OG_WIDTH * OG_HEIGHT * 4);
     glContext.readPixels(0, 0, OG_WIDTH, OG_HEIGHT, glContext.RGBA, glContext.UNSIGNED_BYTE, pixels);
 
-    // Clean up
     geometry.dispose();
     material.dispose();
-    try { renderer.dispose(); } catch { /* canvas shim may not support all cleanup methods */ }
+    try { renderer.dispose(); } catch { /* canvas shim may not support all cleanup */ }
     try { glContext.getExtension("STACKGL_destroy_context")?.destroy(); } catch { /* ignore */ }
 
     return pixels;
@@ -259,7 +187,7 @@ async function compositeImage(pixels: Uint8Array): Promise<Buffer> {
   const canvas = createCanvas(OG_WIDTH, OG_HEIGHT);
   const ctx = canvas.getContext("2d");
 
-  // WebGL pixels are bottom-up, we need to flip them vertically
+  // WebGL pixels are bottom-up, flip vertically
   const imageData = ctx.createImageData(OG_WIDTH, OG_HEIGHT);
   for (let y = 0; y < OG_HEIGHT; y++) {
     const srcRow = (OG_HEIGHT - 1 - y) * OG_WIDTH * 4;
@@ -276,14 +204,9 @@ async function compositeImage(pixels: Uint8Array): Promise<Buffer> {
     const logoSvg = await storage.getItemRaw("zeitwork-logo.svg");
     if (logoSvg) {
       const logo = await loadImage(logoSvg as Buffer);
-
-      // Scale logo to ~160px wide, maintaining aspect ratio
       const logoTargetWidth = 160;
       const logoScale = logoTargetWidth / logo.width;
-      const logoW = logoTargetWidth;
-      const logoH = logo.height * logoScale;
-
-      ctx.drawImage(logo, 40, 36, logoW, logoH);
+      ctx.drawImage(logo, 40, 36, logoTargetWidth, logo.height * logoScale);
     }
   } catch (e) {
     console.error("Failed to load logo:", e);
@@ -298,21 +221,20 @@ async function compositeImage(pixels: Uint8Array): Promise<Buffer> {
 }
 
 // --- Route handler ---
+// URL: /api/og/:id/:state
+// e.g. /api/og/gradient-dither/eyJzcGVlZCI6MC45Mn0
 
 export default defineEventHandler(async (event) => {
-  const query = getQuery(event);
-  const id = (query.id as string) || "gradient-dither";
-  const s = query.s as string | undefined;
+  const id = getRouterParam(event, "id") || "gradient-dither";
+  const rawState = getRouterParam(event, "state");
+  const state = rawState && rawState !== "_" ? rawState : undefined;
 
-  // Render the shader
-  const pixels = await renderShader(id, s);
+  const pixels = await renderShader(id, state);
 
   if (!pixels) {
-    // Fallback: redirect to static OG image
     return sendRedirect(event, "/og-image.png", 302);
   }
 
-  // Composite with logo and text
   const png = await compositeImage(pixels);
 
   setResponseHeader(event, "Content-Type", "image/png");
