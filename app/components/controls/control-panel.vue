@@ -1,18 +1,34 @@
 <script setup lang="ts">
-import { CheckIcon, DownloadIcon, RotateCcwIcon, SettingsIcon, ShareIcon, XIcon } from "lucide-vue-next";
+import { CameraIcon, RotateCcwIcon, SettingsIcon, ShareIcon, XIcon } from "lucide-vue-next";
 import type { Experiment, GradientStop, UniformValue } from "#shared/types";
+
+type ShaderControls = {
+  capture: (width: number, height: number) => Promise<void>;
+  pause: () => void;
+  resume: () => void;
+  getCanvas: () => HTMLCanvasElement | null;
+  configureRenderer: (width: number, height: number) => void;
+  restoreRenderer: () => void;
+  renderFrame: (time: number) => void;
+};
 
 type Props = {
   experiment: Experiment;
+  shader: ShaderControls | null;
 };
 
-const { experiment } = defineProps<Props>();
-const emit = defineEmits<{ download: [] }>();
+type Emits = {
+  capture: [];
+};
+
+const { experiment, shader = null } = defineProps<Props>();
+const emit = defineEmits<Emits>();
 
 const values = defineModel<Record<string, UniformValue>>({ required: true });
 
-const collapsed = ref(false);
+const panelOpen = ref(false);
 const copied = ref(false);
+const exportOpen = ref(false);
 
 function copyUrl() {
   navigator.clipboard.writeText(window.location.href);
@@ -34,34 +50,25 @@ function resetToDefaults() {
 </script>
 
 <template>
-  <div
-    v-if="collapsed"
-    class="fixed right-4 top-4 z-50 flex gap-2"
-  >
+  <div class="fixed right-4 top-4 z-50 flex gap-2">
     <UiTooltip :label="copied ? 'Copied!' : 'Copy settings URL'" :force-open="copied">
-      <button
-        class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-        @click="copyUrl"
-      >
-        <CheckIcon v-if="copied" class="size-4" />
-        <ShareIcon v-else class="size-4" />
-      </button>
+      <UiButton variant="toolbar" @click="copyUrl">
+        Share
+      </UiButton>
     </UiTooltip>
-    <UiTooltip label="Download 5K PNG">
-      <button
-        class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-        @click="emit('download')"
-      >
-        <DownloadIcon class="size-4" />
-      </button>
+    <UiTooltip label="Capture screenshot">
+      <UiButton variant="toolbar" :icon-left="CameraIcon" @click="emit('capture')" />
     </UiTooltip>
-    <UiTooltip label="Settings">
-      <button
-        class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-        @click="collapsed = false"
-      >
-        <SettingsIcon class="size-4" />
-      </button>
+    <UiTooltip label="Export">
+      <UiButton variant="toolbar" :icon-left="ShareIcon" @click="exportOpen = true" />
+    </UiTooltip>
+    <ControlsExportDialog
+      v-model:open="exportOpen"
+      :experiment-id="experiment.id"
+      :shader="shader"
+    />
+    <UiTooltip :label="panelOpen ? 'Close settings' : 'Settings'">
+      <UiButton variant="toolbar" :icon-left="panelOpen ? XIcon : SettingsIcon" @click="panelOpen = !panelOpen" />
     </UiTooltip>
   </div>
 
@@ -74,8 +81,8 @@ function resetToDefaults() {
     leave-to-class="translate-x-4 opacity-0"
   >
     <div
-      v-if="!collapsed"
-      class="fixed right-4 top-4 bottom-4 z-40 flex w-72 flex-col gap-3"
+      v-if="panelOpen"
+      class="fixed right-4 top-16 bottom-4 z-40 flex w-72 flex-col"
     >
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-edge bg-base-1/80 shadow-2xl backdrop-blur-xl">
         <div class="flex shrink-0 items-center justify-between border-b border-edge px-3 py-2.5">
@@ -83,21 +90,7 @@ function resetToDefaults() {
             <span class="text-copy-sm font-medium text-primary">{{ experiment.name }}</span>
             <span class="text-copy-xs text-tertiary">{{ experiment.description }}</span>
           </div>
-          <div class="flex items-center gap-0.5">
-            <button
-              class="flex size-6 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-surface-1 hover:text-secondary"
-              title="Reset to defaults"
-              @click="resetToDefaults"
-            >
-              <RotateCcwIcon class="size-3.5" />
-            </button>
-            <button
-              class="flex size-6 items-center justify-center rounded-md text-tertiary transition-colors hover:bg-surface-1 hover:text-secondary"
-              @click="collapsed = true"
-            >
-              <XIcon class="size-3.5" />
-            </button>
-          </div>
+          <UiButton variant="ghost" size="sm" :icon-left="RotateCcwIcon" title="Reset to defaults" @click="resetToDefaults" />
         </div>
 
         <div class="flex-1 overflow-y-auto">
@@ -116,26 +109,6 @@ function resetToDefaults() {
             </ControlsControlGroup>
           </div>
         </div>
-      </div>
-
-      <div class="flex shrink-0 gap-2 self-end">
-        <UiTooltip :label="copied ? 'Copied!' : 'Copy settings URL'" :force-open="copied">
-          <button
-            class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-            @click="copyUrl"
-          >
-            <CheckIcon v-if="copied" class="size-4" />
-            <ShareIcon v-else class="size-4" />
-          </button>
-        </UiTooltip>
-        <UiTooltip label="Download 5K PNG">
-          <button
-            class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-            @click="emit('download')"
-          >
-            <DownloadIcon class="size-4" />
-          </button>
-        </UiTooltip>
       </div>
     </div>
   </Transition>

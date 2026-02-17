@@ -8,14 +8,11 @@ type Props = {
 };
 
 const { label, side = "bottom", forceOpen = false } = defineProps<Props>();
-
-const hovered = ref(false);
-
-const isOpen = computed(() => forceOpen || hovered.value);
 </script>
 
 <template>
-  <TooltipRoot :open="isOpen" @update:open="hovered = $event">
+  <!-- When forceOpen is true, use controlled mode to keep it open -->
+  <TooltipRoot v-if="forceOpen" :open="true">
     <TooltipTrigger as-child>
       <slot />
     </TooltipTrigger>
@@ -24,6 +21,22 @@ const isOpen = computed(() => forceOpen || hovered.value);
         :side="side"
         :side-offset="8"
         class="z-50 rounded-lg border border-edge bg-base-1 px-2.5 py-1.5 text-copy-xs text-secondary shadow-lg backdrop-blur-xl animate-contentShow"
+      >
+        {{ label }}
+      </TooltipContent>
+    </TooltipPortal>
+  </TooltipRoot>
+
+  <!-- Default: uncontrolled, reka-ui handles hover state -->
+  <TooltipRoot v-else>
+    <TooltipTrigger as-child>
+      <slot />
+    </TooltipTrigger>
+    <TooltipPortal>
+      <TooltipContent
+        :side="side"
+        :side-offset="8"
+        class="z-50 rounded-lg border border-edge bg-base-1 px-2.5 py-1.5 text-copy-xs text-secondary shadow-lg backdrop-blur-xl data-[state=delayed-open]:animate-contentShow"
       >
         {{ label }}
       </TooltipContent>

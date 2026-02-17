@@ -8,11 +8,11 @@ type Props = {
 const { experiment } = defineProps<Props>();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
-const { values, capture } = useShader(canvasRef, experiment);
+const { values, capture, pause, resume, getCanvas, configureRenderer, restoreRenderer, renderFrame } = useShader(canvasRef, experiment);
 
 useUrlState(values, experiment);
 
-defineExpose({ values, capture });
+defineExpose({ values, capture, pause, resume, getCanvas, configureRenderer, restoreRenderer, renderFrame });
 </script>
 
 <template>

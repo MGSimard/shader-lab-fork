@@ -198,47 +198,87 @@ export function useShader(
     }
   }
 
-  async function capture(width: number, height: number): Promise<void> {
-    if (!renderer || !scene || !camera) return;
+  // --- Export helpers ---
 
-    // Pause animation
+  let savedState: {
+    pixelRatio: number;
+    size: THREE.Vector2;
+    resolution: THREE.Vector2;
+    scale: number;
+  } | null = null;
+
+  function pause() {
     if (animationId !== null) {
       cancelAnimationFrame(animationId);
       animationId = null;
     }
+  }
 
-    // Save current state
-    const prevPixelRatio = renderer.getPixelRatio();
+  function resume() {
+    if (animationId === null && renderer) {
+      animate();
+    }
+  }
+
+  function getCanvas(): HTMLCanvasElement | null {
+    return renderer?.domElement ?? null;
+  }
+
+  /** Configure the renderer for export at the given resolution. Call restoreRenderer() when done. */
+  function configureRenderer(width: number, height: number) {
+    if (!renderer) return;
+
     const prevSize = new THREE.Vector2();
     renderer.getSize(prevSize);
-    const prevResolution = (uniforms.u_resolution.value as THREE.Vector2).clone();
 
-    // Compute scale factor relative to CSS viewport (DPR-independent baseline)
+    savedState = {
+      pixelRatio: renderer.getPixelRatio(),
+      size: prevSize,
+      resolution: (uniforms.u_resolution.value as THREE.Vector2).clone(),
+      scale: uniforms.u_scale.value as number,
+    };
+
     const scaleFactor = width / prevSize.x;
-
-    // Set up high-res render
     renderer.setPixelRatio(1);
     renderer.setSize(width, height, false);
     (uniforms.u_resolution.value as THREE.Vector2).set(width, height);
     uniforms.u_scale.value = scaleFactor;
+  }
+
+  /** Restore the renderer to its previous state after export. */
+  function restoreRenderer() {
+    if (!renderer || !savedState) return;
+
+    renderer.setPixelRatio(savedState.pixelRatio);
+    renderer.setSize(savedState.size.x, savedState.size.y);
+    (uniforms.u_resolution.value as THREE.Vector2).copy(savedState.resolution);
+    uniforms.u_scale.value = savedState.scale;
+    savedState = null;
+  }
+
+  /** Render a single frame at the given time. Renderer must be configured first. */
+  function renderFrame(time: number) {
+    if (!renderer || !scene || !camera) return;
+    uniforms.u_time.value = time;
+    renderer.render(scene, camera);
+  }
+
+  async function capture(width: number, height: number): Promise<void> {
+    if (!renderer || !scene || !camera) return;
+
+    pause();
+    configureRenderer(width, height);
 
     // Render one frame
-    uniforms.u_time.value = performance.now() / 1000;
-    renderer.render(scene, camera);
+    renderFrame(performance.now() / 1000);
 
     // Extract pixels
     const blob = await new Promise<Blob | null>((resolve) => {
       renderer!.domElement.toBlob(resolve, "image/png");
     });
 
-    // Restore original state
-    renderer.setPixelRatio(prevPixelRatio);
-    renderer.setSize(prevSize.x, prevSize.y);
-    (uniforms.u_resolution.value as THREE.Vector2).copy(prevResolution);
-    uniforms.u_scale.value = prevPixelRatio;
-
-    // Resume animation
-    animate();
+    restoreRenderer();
+    resume();
 
     // Trigger download
     if (blob) {
@@ -288,5 +328,11 @@ export function useShader(
   return {
     values,
     capture,
+    pause,
+    resume,
+    getCanvas,
+    configureRenderer,
+    restoreRenderer,
+    renderFrame,
   };
 }

@@ -41,9 +41,15 @@ useSeoMeta({
 const canvasRef = ref<{
   values: Record<string, UniformValue>;
   capture: (width: number, height: number) => Promise<void>;
+  pause: () => void;
+  resume: () => void;
+  getCanvas: () => HTMLCanvasElement | null;
+  configureRenderer: (width: number, height: number) => void;
+  restoreRenderer: () => void;
+  renderFrame: (time: number) => void;
 } | null>(null);
 
-function download() {
+function capture() {
   canvasRef.value?.capture(5120, 2880);
 }
 </script>
@@ -58,7 +64,8 @@ function download() {
       v-if="canvasRef"
       v-model="canvasRef.values"
       :experiment="experiment"
-      @download="download"
+      :shader="canvasRef"
+      @capture="capture"
     />
   </ClientOnly>
 </template>
