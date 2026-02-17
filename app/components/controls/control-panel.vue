@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DownloadIcon, RotateCcwIcon, SettingsIcon, XIcon } from "lucide-vue-next";
+import { CheckIcon, DownloadIcon, RotateCcwIcon, SettingsIcon, ShareIcon, XIcon } from "lucide-vue-next";
 import type { Experiment, GradientStop, UniformValue } from "#shared/types";
 
 type Props = {
@@ -12,6 +12,13 @@ const emit = defineEmits<{ download: [] }>();
 const values = defineModel<Record<string, UniformValue>>({ required: true });
 
 const collapsed = ref(false);
+const copied = ref(false);
+
+function copyUrl() {
+  navigator.clipboard.writeText(window.location.href);
+  copied.value = true;
+  setTimeout(() => { copied.value = false; }, 2000);
+}
 
 function resetToDefaults() {
   for (const group of experiment.groups) {
@@ -27,27 +34,37 @@ function resetToDefaults() {
 </script>
 
 <template>
-  <!-- Collapsed: stacked icon buttons -->
   <div
     v-if="collapsed"
-    class="fixed right-4 top-4 z-50 flex flex-col gap-2"
+    class="fixed right-4 top-4 z-50 flex gap-2"
   >
-    <button
-      class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-      @click="collapsed = false"
-    >
-      <SettingsIcon class="size-4" />
-    </button>
-    <button
-      class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-      title="Download 5K PNG"
-      @click="emit('download')"
-    >
-      <DownloadIcon class="size-4" />
-    </button>
+    <UiTooltip :label="copied ? 'Copied!' : 'Copy settings URL'" :force-open="copied">
+      <button
+        class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
+        @click="copyUrl"
+      >
+        <CheckIcon v-if="copied" class="size-4" />
+        <ShareIcon v-else class="size-4" />
+      </button>
+    </UiTooltip>
+    <UiTooltip label="Download 5K PNG">
+      <button
+        class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
+        @click="emit('download')"
+      >
+        <DownloadIcon class="size-4" />
+      </button>
+    </UiTooltip>
+    <UiTooltip label="Settings">
+      <button
+        class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
+        @click="collapsed = false"
+      >
+        <SettingsIcon class="size-4" />
+      </button>
+    </UiTooltip>
   </div>
 
-  <!-- Expanded: sidebar container -->
   <Transition
     enter-active-class="transition-all duration-300 ease-out-expo"
     enter-from-class="translate-x-4 opacity-0"
@@ -60,9 +77,7 @@ function resetToDefaults() {
       v-if="!collapsed"
       class="fixed right-4 top-4 bottom-4 z-40 flex w-72 flex-col gap-3"
     >
-      <!-- Panel -->
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-edge bg-base-1/80 shadow-2xl backdrop-blur-xl">
-        <!-- Header -->
         <div class="flex shrink-0 items-center justify-between border-b border-edge px-3 py-2.5">
           <div class="flex flex-col">
             <span class="text-copy-sm font-medium text-primary">{{ experiment.name }}</span>
@@ -85,7 +100,6 @@ function resetToDefaults() {
           </div>
         </div>
 
-        <!-- Controls -->
         <div class="flex-1 overflow-y-auto">
           <div class="flex flex-col divide-y divide-edge">
             <ControlsControlGroup
@@ -104,14 +118,25 @@ function resetToDefaults() {
         </div>
       </div>
 
-      <!-- Download button -->
-      <button
-        class="flex size-9 shrink-0 items-center justify-center self-end rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
-        title="Download 5K PNG"
-        @click="emit('download')"
-      >
-        <DownloadIcon class="size-4" />
-      </button>
+      <div class="flex shrink-0 gap-2 self-end">
+        <UiTooltip :label="copied ? 'Copied!' : 'Copy settings URL'" :force-open="copied">
+          <button
+            class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
+            @click="copyUrl"
+          >
+            <CheckIcon v-if="copied" class="size-4" />
+            <ShareIcon v-else class="size-4" />
+          </button>
+        </UiTooltip>
+        <UiTooltip label="Download 5K PNG">
+          <button
+            class="flex size-9 items-center justify-center rounded-xl border border-edge bg-base-1 text-secondary shadow-lg backdrop-blur-xl transition-colors hover:bg-surface-1 hover:text-primary"
+            @click="emit('download')"
+          >
+            <DownloadIcon class="size-4" />
+          </button>
+        </UiTooltip>
+      </div>
     </div>
   </Transition>
 </template>

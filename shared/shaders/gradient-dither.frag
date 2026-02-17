@@ -23,6 +23,9 @@ uniform float ditherScale;
 uniform float grainIntensity;
 uniform float grainSpeed;
 
+uniform float vignetteIntensity;
+uniform float vignetteRadius;
+
 // Gradient texture (1D ramp, generated on CPU)
 uniform sampler2D u_gradient;
 
@@ -115,11 +118,11 @@ void main() {
     grain *= grainIntensity;
     color += grain;
 
-    // Edge feathering: use dither block coord for blocky feathering
+    // Vignette: use dither block coord for blocky feathering
     vec2 normUV = ditherBlockCoord / u_resolution;
-    vec2 feather = smoothstep(0.0, 0.4, normUV) * smoothstep(0.0, 0.4, 1.0 - normUV);
+    vec2 feather = smoothstep(0.0, vignetteRadius, normUV) * smoothstep(0.0, vignetteRadius, 1.0 - normUV);
     float edgeMask = feather.x * feather.y;
-    color *= edgeMask;
+    color = mix(color, color * edgeMask, vignetteIntensity);
 
     // Bayer dithering: only this is per-pixel
     color = ditherColor(color, fragCoord, ditherLevels, ditherScale * u_scale);
