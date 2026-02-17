@@ -1,18 +1,11 @@
-import type { Experiment, GradientStop, UniformValue } from "#shared/types";
+import type { Experiment, GradientStop, UniformDef, UniformValue } from "#shared/types";
 
 type UniformValues = Record<string, UniformValue>;
 
-// --- Base64url encoding (URL-safe, no padding) ---
-
-function toBase64url(str: string): string {
-  const b64 = btoa(str);
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+// --- Base64url encoding (URL-safe, no padding) — kept for legacy decode ---
 
 function fromBase64url(str: string): string {
-  // Restore standard base64
   let b64 = str.replace(/-/g, "+").replace(/_/g, "/");
-  // Add padding
   const pad = b64.length % 4;
   if (pad === 2) b64 += "==";
   else if (pad === 3) b64 += "=";
@@ -20,23 +13,22 @@ function fromBase64url(str: string): string {
 }
 
 // --- Compact gradient encoding ---
-// Format: "hex:pos|hex:pos|..." where hex has no # and pos is a percentage (0-100)
+// Format: "hex:pos!hex:pos!..." where hex has no # and pos is a percentage (0-100)
 
 function encodeGradient(stops: GradientStop[]): string {
   return stops
     .map((s) => {
       const hex = s.color.replace("#", "");
-      // Round position to 2 decimal places as percentage
       const pos = Math.round(s.position * 10000) / 100;
-      // Use integer if whole number
       const posStr = pos % 1 === 0 ? String(pos) : pos.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
       return `${hex}:${posStr}`;
     })
-    .join("|");
+    .join("!");
 }
 
 function decodeGradient(str: string): GradientStop[] | null {
-  const parts = str.split("|");
+  // Support both "!" (current) and "|" (legacy) as stop separators
+  const parts = str.split(/[!|]/);
   if (parts.length < 2) return null;
 
   const stops: GradientStop[] = [];
@@ -56,8 +48,8 @@ function decodeGradient(str: string): GradientStop[] | null {
 
 // --- Compact vec2 encoding ---
 
-function encodeVec2(v: [number, number]): string {
-  return `${v[0]},${v[1]}`;
+function encodeVec2(v: [number, number], step?: number): string {
+  return `${roundToPrecision(v[0], step)},${roundToPrecision(v[1], step)}`;
 }
 
 function decodeVec2(str: string): [number, number] | null {
@@ -92,48 +84,146 @@ function valuesEqual(a: UniformValue, b: UniformValue): boolean {
   return false;
 }
 
-// --- Encode: values → compact base64url string ---
+// --- Helpers ---
 
-export function encodeState(values: UniformValues, experiment: Experiment): string {
-  // Build compact object with only non-default values
-  const compact: Record<string, string | number | boolean> = {};
+const ENTRY_SEPARATOR = "~";
 
+/** Flatten all uniform definitions from an experiment in definition order. */
+function flattenUniforms(experiment: Experiment): UniformDef[] {
+  const defs: UniformDef[] = [];
   for (const group of experiment.groups) {
     for (const def of group.uniforms) {
-      const val = values[def.name];
-      if (val === undefined) continue;
-      if (valuesEqual(val, def.default)) continue;
-
-      switch (def.type) {
-        case "float":
-        case "int":
-          compact[def.name] = val as number;
-          break;
-        case "bool":
-          compact[def.name] = val as boolean;
-          break;
-        case "color":
-          compact[def.name] = (val as string).replace("#", "");
-          break;
-        case "vec2":
-          compact[def.name] = encodeVec2(val as [number, number]);
-          break;
-        case "gradient":
-          compact[def.name] = encodeGradient(val as GradientStop[]);
-          break;
-      }
+      defs.push(def);
     }
   }
-
-  if (Object.keys(compact).length === 0) return "";
-
-  const json = JSON.stringify(compact);
-  return toBase64url(json);
+  return defs;
 }
 
-// --- Decode: compact base64url string → validated values ---
+/** Derive the number of decimal places from a uniform's step value. */
+function precisionFromStep(step?: number): number {
+  if (step === undefined || step <= 0) return 2;
+  if (step >= 1) return 0;
+  const str = step.toString();
+  const dotIdx = str.indexOf(".");
+  if (dotIdx === -1) return 0;
+  return str.length - dotIdx - 1;
+}
 
-export function decodeState(
+/** Round a number to the given precision and return a minimal string representation. */
+function roundToPrecision(value: number, step?: number): string {
+  const precision = precisionFromStep(step);
+  const rounded = Number(value.toFixed(precision));
+  return String(rounded);
+}
+
+// --- Encode: values → index-prefixed string ---
+// Format: "idx=value~idx=value~..." where idx is the uniform's position in the flat list.
+// Only non-default values are included. No base64 wrapping.
+
+export function encodeState(values: UniformValues, experiment: Experiment): string {
+  const defs = flattenUniforms(experiment);
+  const parts: string[] = [];
+
+  for (let i = 0; i < defs.length; i++) {
+    const def = defs[i]!;
+    const val = values[def.name];
+
+    if (val === undefined || valuesEqual(val, def.default)) continue;
+
+    let encoded: string;
+    switch (def.type) {
+      case "float":
+        encoded = roundToPrecision(val as number, def.step);
+        break;
+      case "int":
+        encoded = String(Math.round(val as number));
+        break;
+      case "bool":
+        encoded = (val as boolean) ? "1" : "0";
+        break;
+      case "color":
+        encoded = (val as string).replace("#", "");
+        break;
+      case "vec2":
+        encoded = encodeVec2(val as [number, number], def.step);
+        break;
+      case "gradient":
+        encoded = encodeGradient(val as GradientStop[]);
+        break;
+      default:
+        continue;
+    }
+
+    parts.push(`${i}=${encoded}`);
+  }
+
+  return parts.length > 0 ? parts.join(ENTRY_SEPARATOR) : "";
+}
+
+// --- Decode: index-prefixed string → validated values ---
+
+function decodeStateIndexed(
+  encoded: string,
+  experiment: Experiment,
+): UniformValues | null {
+  try {
+    const defs = flattenUniforms(experiment);
+    const entries = encoded.split(ENTRY_SEPARATOR);
+    const result: UniformValues = {};
+
+    for (const entry of entries) {
+      const eqIdx = entry.indexOf("=");
+      if (eqIdx === -1) continue;
+
+      const idx = parseInt(entry.slice(0, eqIdx), 10);
+      const token = entry.slice(eqIdx + 1);
+      if (!Number.isFinite(idx) || idx < 0 || idx >= defs.length) continue;
+      if (!token) continue;
+
+      const def = defs[idx]!;
+
+      switch (def.type) {
+        case "float": {
+          const v = parseFloat(token);
+          if (Number.isFinite(v)) result[def.name] = v;
+          break;
+        }
+        case "int": {
+          const v = parseInt(token, 10);
+          if (Number.isFinite(v)) result[def.name] = v;
+          break;
+        }
+        case "bool":
+          if (token === "1") result[def.name] = true;
+          else if (token === "0") result[def.name] = false;
+          break;
+        case "color":
+          if (/^[0-9a-f]{6}$/i.test(token)) {
+            result[def.name] = `#${token}`;
+          }
+          break;
+        case "vec2": {
+          const v = decodeVec2(token);
+          if (v) result[def.name] = v;
+          break;
+        }
+        case "gradient": {
+          const stops = decodeGradient(token);
+          if (stops) result[def.name] = stops;
+          break;
+        }
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+// --- Legacy decode: base64url JSON → validated values ---
+
+function decodeStateLegacy(
   encoded: string,
   experiment: Experiment,
 ): UniformValues | null {
@@ -144,7 +234,6 @@ export function decodeState(
 
     const result: UniformValues = {};
 
-    // Build type lookup
     const uniformDefs = new Map<string, { type: string; def: UniformValue }>();
     for (const group of experiment.groups) {
       for (const def of group.uniforms) {
@@ -192,4 +281,29 @@ export function decodeState(
   } catch {
     return null;
   }
+}
+
+// --- Public decode with format detection ---
+// Two formats supported:
+// 1. Index-prefixed (new):  "0=0.92~1=5.3~6=2.1"
+// 2. Legacy base64+JSON:    "eyJzcGVlZCI6MC45Mn0"
+
+export function decodeState(
+  encoded: string,
+  experiment: Experiment,
+): UniformValues | null {
+  if (!encoded) return null;
+
+  // Try legacy base64+JSON: decodes to a string starting with "{"
+  try {
+    const json = fromBase64url(encoded);
+    if (json.startsWith("{")) {
+      return decodeStateLegacy(encoded, experiment);
+    }
+  } catch {
+    // Not valid base64 — fall through to index-prefixed
+  }
+
+  // Index-prefixed format
+  return decodeStateIndexed(encoded, experiment);
 }
