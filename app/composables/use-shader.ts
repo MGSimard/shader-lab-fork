@@ -53,7 +53,11 @@ function updateGradientTexture(texture: THREE.CanvasTexture, stops: GradientStop
   texture.needsUpdate = true;
 }
 
-function buildThreeUniforms(experiment: Experiment, values: UniformValues) {
+function buildThreeUniforms(
+  experiment: Experiment,
+  values: UniformValues,
+  enabledGroups: Record<string, boolean>,
+) {
   const uniforms: Record<string, { value: unknown }> = {
     u_time: { value: 0.0 },
     u_resolution: { value: new THREE.Vector2(
@@ -64,6 +68,11 @@ function buildThreeUniforms(experiment: Experiment, values: UniformValues) {
   };
 
   for (const group of experiment.groups) {
+    if (group.enableUniform) {
+      uniforms[group.enableUniform] = {
+        value: enabledGroups[group.label] !== false ? 1 : 0,
+      };
+    }
     for (const def of group.uniforms) {
       const val = values[def.name] ?? def.default;
 
@@ -98,8 +107,10 @@ function buildThreeUniforms(experiment: Experiment, values: UniformValues) {
 export function useShader(
   canvasRef: Ref<HTMLCanvasElement | null>,
   experiment: Experiment,
+  enabledGroupsRef?: Ref<Record<string, boolean>>,
 ) {
   const values = reactive<UniformValues>({});
+  const enabledGroups = enabledGroupsRef ? () => enabledGroupsRef.value ?? {} : () => ({});
   let renderer: THREE.WebGLRenderer | null = null;
   let scene: THREE.Scene | null = null;
   let camera: THREE.OrthographicCamera | null = null;
@@ -130,7 +141,7 @@ export function useShader(
     camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     scene = new THREE.Scene();
 
-    uniforms = buildThreeUniforms(experiment, values);
+    uniforms = buildThreeUniforms(experiment, values, enabledGroups());
 
     const geometry = new THREE.PlaneGeometry(2, 2);
     const material = new THREE.ShaderMaterial({
@@ -166,7 +177,11 @@ export function useShader(
   function syncUniforms() {
     if (!uniforms.u_time) return; // not initialized yet
 
+    const eg = enabledGroups();
     for (const group of experiment.groups) {
+      if (group.enableUniform && uniforms[group.enableUniform]) {
+        (uniforms[group.enableUniform] as { value: number }).value = eg[group.label] !== false ? 1 : 0;
+      }
       for (const def of group.uniforms) {
         const val = values[def.name];
         if (val === undefined || !uniforms[def.name]) continue;
@@ -314,6 +329,9 @@ export function useShader(
 
   // Watch for value changes and sync to Three.js uniforms
   watch(values, syncUniforms, { deep: true });
+  if (enabledGroupsRef) {
+    watch(() => enabledGroupsRef.value, syncUniforms, { deep: true });
+  }
 
   onMounted(() => {
     init();

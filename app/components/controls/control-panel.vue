@@ -25,6 +25,7 @@ const { experiment, shader = null } = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const values = defineModel<Record<string, UniformValue>>({ required: true });
+const enabledGroups = defineModel<Record<string, boolean>>("enabledGroups", { default: () => ({}) });
 
 const panelOpen = ref(false);
 const copied = ref(false);
@@ -99,6 +100,9 @@ function resetToDefaults() {
               v-for="group in experiment.groups"
               :key="group.label"
               :label="group.label"
+              :enable-uniform="group.enableUniform"
+              :enabled="enabledGroups[group.label] ?? true"
+              @update:enabled="(v) => { enabledGroups[group.label] = v }"
             >
               <ControlsUniformControl
                 v-for="uniform in group.uniforms"

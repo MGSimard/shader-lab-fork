@@ -20,6 +20,8 @@ export type UniformDef = {
 export type ControlGroup = {
   label: string;
   uniforms: UniformDef[];
+  /** When set, a checkbox appears to enable/disable this feature. The shader receives this uniform (0 = disabled, 1 = enabled). */
+  enableUniform?: string;
 };
 
 export type Experiment = {

@@ -26,6 +26,14 @@ uniform float grainSpeed;
 uniform float vignetteIntensity;
 uniform float vignetteRadius;
 
+// Feature enable toggles (1.0 = on, 0.0 = off)
+uniform float u_enableWave;
+uniform float u_enableWarp;
+uniform float u_enableGradient;
+uniform float u_enableDither;
+uniform float u_enableGrain;
+uniform float u_enableVignette;
+
 // Gradient texture (1D ramp, generated on CPU)
 uniform sampler2D u_gradient;
 
@@ -90,42 +98,58 @@ void main() {
     vec2 blockUV = ditherBlockCoord / u_resolution;
     blockUV = blockUV * 2.0 - 1.0;
     blockUV.x *= u_resolution.x / u_resolution.y;
-    blockUV.x += offsetX + sin(u_time * speed * 0.15) * 0.5 + cos(u_time * speed * 0.08) * 0.3;
+    blockUV.x += offsetX + (u_enableWave > 0.5 ? (sin(u_time * speed * 0.15) * 0.5 + cos(u_time * speed * 0.08) * 0.3) : 0.0);
 
     // Time-based animation
     float animatedWarpIntensity = localWarpIntensity + 0.12 * sin(u_time * speed * 0.9);
     float animatedWaveWidth     = pow(waveWidthMod, u_time * speed * 0.1) + 0.25 * sin(u_time * speed * 0.3 + 3.14);
 
-    // Square wave warp
-    float angle = atan(warpDirection.y, warpDirection.x) + sin(u_time * speed * 0.1) * 1.57;
-    vec2 dir = vec2(cos(angle), sin(angle));
-    float diag = dot(blockUV, dir);
-    float wave = modulatedSquareWave(diag, freq, sharpness, animatedWaveWidth);
-    float animatedAmplitude = amplitude * (1.5 + 0.4 * sin(u_time * speed * 0.13));
-    vec2 warpedUV = blockUV + dir * wave * animatedAmplitude;
+    // Square wave warp (only when enabled)
+    vec2 warpedUV = blockUV;
+    if (u_enableWave > 0.5) {
+        float angle = atan(warpDirection.y, warpDirection.x) + sin(u_time * speed * 0.1) * 1.57;
+        vec2 dir = vec2(cos(angle), sin(angle));
+        float diag = dot(blockUV, dir);
+        float wave = modulatedSquareWave(diag, freq, sharpness, animatedWaveWidth);
+        float animatedAmplitude = amplitude * (1.5 + 0.4 * sin(u_time * speed * 0.13));
+        warpedUV = blockUV + dir * wave * animatedAmplitude;
+    }
 
-    // Local warping
-    warpedUV = localWarp(warpedUV, animatedWarpIntensity, localWarpFreqX, localWarpFreqY);
+    // Local warping (only when enabled)
+    if (u_enableWarp > 0.5) {
+        warpedUV = localWarp(warpedUV, animatedWarpIntensity, localWarpFreqX, localWarpFreqY);
+    }
 
     // Sample gradient texture: map warpedUV.y from [-1.5, 1.5] to [0, 1]
-    float gradientT = clamp(warpedUV.y * -0.33 + 0.5, 0.0, 1.0);
-    vec3 color = texture2D(u_gradient, vec2(gradientT, 0.5)).rgb;
+    vec3 color;
+    if (u_enableGradient > 0.5) {
+        float gradientT = clamp(warpedUV.y * -0.33 + 0.5, 0.0, 1.0);
+        color = texture2D(u_gradient, vec2(gradientT, 0.5)).rgb;
+    } else {
+        color = vec3(0.5);  // neutral gray when gradient disabled
+    }
 
-    // Grain: use dither block coord for blocky grain
-    float grainSeed = fract(u_time * grainSpeed);
-    float grain = hash12(ditherBlockCoord + grainSeed);
-    grain = grain * 2.0 - 1.0;
-    grain *= grainIntensity;
-    color += grain;
+    // Grain: use dither block coord for blocky grain (only when enabled)
+    if (u_enableGrain > 0.5) {
+        float grainSeed = fract(u_time * grainSpeed);
+        float grain = hash12(ditherBlockCoord + grainSeed);
+        grain = grain * 2.0 - 1.0;
+        grain *= grainIntensity;
+        color += grain;
+    }
 
-    // Vignette: use dither block coord for blocky feathering
-    vec2 normUV = ditherBlockCoord / u_resolution;
-    vec2 feather = smoothstep(0.0, vignetteRadius, normUV) * smoothstep(0.0, vignetteRadius, 1.0 - normUV);
-    float edgeMask = feather.x * feather.y;
-    color = mix(color, color * edgeMask, vignetteIntensity);
+    // Vignette: use dither block coord for blocky feathering (only when enabled)
+    if (u_enableVignette > 0.5) {
+        vec2 normUV = ditherBlockCoord / u_resolution;
+        vec2 feather = smoothstep(0.0, vignetteRadius, normUV) * smoothstep(0.0, vignetteRadius, 1.0 - normUV);
+        float edgeMask = feather.x * feather.y;
+        color = mix(color, color * edgeMask, vignetteIntensity);
+    }
 
-    // Bayer dithering: only this is per-pixel
-    color = ditherColor(color, fragCoord, ditherLevels, ditherScale * u_scale);
+    // Bayer dithering: only this is per-pixel (only when enabled)
+    if (u_enableDither > 0.5) {
+        color = ditherColor(color, fragCoord, ditherLevels, ditherScale * u_scale);
+    }
 
     gl_FragColor = vec4(color, 1.0);
 }

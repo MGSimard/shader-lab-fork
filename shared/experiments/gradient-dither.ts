@@ -9,6 +9,7 @@ export default {
 	groups: [
 		{
 			label: "Wave",
+			enableUniform: "u_enableWave",
 			uniforms: [
 				{
 					name: "speed",
@@ -68,6 +69,7 @@ export default {
 		},
 		{
 			label: "Warp",
+			enableUniform: "u_enableWarp",
 			uniforms: [
 				{
 					name: "localWarpIntensity",
@@ -109,6 +111,7 @@ export default {
 		},
 		{
 			label: "Gradient",
+			enableUniform: "u_enableGradient",
 			uniforms: [
 				{
 					name: "u_gradient",
@@ -127,6 +130,7 @@ export default {
 		},
 		{
 			label: "Dithering",
+			enableUniform: "u_enableDither",
 			uniforms: [
 				{
 					name: "ditherLevels",
@@ -150,6 +154,7 @@ export default {
 		},
 		{
 			label: "Grain",
+			enableUniform: "u_enableGrain",
 			uniforms: [
 				{
 					name: "grainIntensity",
@@ -173,6 +178,7 @@ export default {
 	},
 	{
 		label: "Vignette",
+		enableUniform: "u_enableVignette",
 		uniforms: [
 			{
 				name: "vignetteIntensity",

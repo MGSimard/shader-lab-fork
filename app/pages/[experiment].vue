@@ -49,6 +49,9 @@ const canvasRef = ref<{
   renderFrame: (time: number) => void;
 } | null>(null);
 
+const enabledGroups = ref<Record<string, boolean>>({});
+provide("enabledGroupsRef", enabledGroups);
+
 function capture() {
   canvasRef.value?.capture(5120, 2880);
 }
@@ -63,6 +66,7 @@ function capture() {
     <ControlsControlPanel
       v-if="canvasRef"
       v-model="canvasRef.values"
+      v-model:enabled-groups="enabledGroups"
       :experiment="experiment"
       :shader="canvasRef"
       @capture="capture"

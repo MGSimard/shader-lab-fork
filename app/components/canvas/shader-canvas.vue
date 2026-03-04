@@ -6,9 +6,10 @@ type Props = {
 };
 
 const { experiment } = defineProps<Props>();
+const enabledGroupsRef = inject<Ref<Record<string, boolean>>>("enabledGroupsRef");
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
-const { values, capture, pause, resume, getCanvas, configureRenderer, restoreRenderer, renderFrame } = useShader(canvasRef, experiment);
+const { values, capture, pause, resume, getCanvas, configureRenderer, restoreRenderer, renderFrame } = useShader(canvasRef, experiment, enabledGroupsRef);
 
 useUrlState(values, experiment);
 

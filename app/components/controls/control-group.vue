@@ -5,11 +5,19 @@ import { ChevronRightIcon } from "lucide-vue-next";
 type Props = {
   label: string;
   defaultOpen?: boolean;
+  enableUniform?: string;
+  enabled?: boolean;
 };
 
-const { label, defaultOpen = true } = defineProps<Props>();
+const { label, defaultOpen = true, enableUniform, enabled = true } = defineProps<Props>();
+const emit = defineEmits<{ "update:enabled": [value: boolean] }>();
 
 const open = ref(defaultOpen);
+
+const isEnabled = computed({
+  get: () => enabled,
+  set: (v) => emit("update:enabled", v),
+});
 </script>
 
 <template>
@@ -24,6 +32,13 @@ const open = ref(defaultOpen);
         ]"
       />
       {{ label }}
+      <div
+        v-if="enableUniform"
+        class="ml-auto shrink-0"
+        @click.stop
+      >
+        <UiCheckbox v-model="isEnabled" />
+      </div>
     </CollapsibleTrigger>
     <CollapsibleContent
       class="overflow-hidden data-[state=closed]:animate-collapse data-[state=open]:animate-expand"
